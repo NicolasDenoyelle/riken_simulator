@@ -43,6 +43,7 @@
 #include "base/intmath.hh"
 #include "base/types.hh"
 #include "mem/request.hh"
+#include "sim/numa.hh"
 #include "sim/serialize.hh"
 
 class ThreadContext;
@@ -57,6 +58,23 @@ class EmulationPageTable : public Serializable
 
         Entry(Addr paddr, uint64_t flags) : paddr(paddr), flags(flags) {}
         Entry() {}
+
+        static void set_numa_mode(uint64_t &flags,
+                                  const enum NUMA::mode mode) {
+            (flags = flags & 0xFFFFFFFF); // reset
+            (flags = flags | ((uint64_t) mode << 32)); // set
+        }
+
+        void set_numa_mode(const enum NUMA::mode mode) {
+            (flags = flags & 0xFFFFFFFF); // reset
+            (flags = flags | ((uint64_t) mode << 32)); // set
+        }
+
+        void set_numa_mode() { (flags = flags & 0xFFFFFFFF); }
+
+        enum NUMA::mode get_numa_mode() const {
+            return static_cast<enum NUMA::mode>(flags >> 32);
+        }
     };
 
   protected:
@@ -89,6 +107,7 @@ class EmulationPageTable : public Serializable
      * bit 0 - no-clobber | clobber
      * bit 2 - cacheable  | uncacheable
      * bit 3 - read-write | read-only
+     * << 32  - NUMA policy
      */
     enum MappingFlags : uint32_t {
         Clobber     = 1,
@@ -101,8 +120,9 @@ class EmulationPageTable : public Serializable
     // for DPRINTF compatibility
     const std::string name() const { return _name; }
 
-    Addr pageAlign(Addr a)  { return (a & ~offsetMask); }
-    Addr pageOffset(Addr a) { return (a &  offsetMask); }
+    Addr getPageSize() const { return pageSize; }
+    Addr pageAlign(Addr a) const { return (a & ~offsetMask); }
+    Addr pageOffset(Addr a) const { return (a &  offsetMask); }
 
     /**
      * Maps a virtual memory region to a physical memory region.

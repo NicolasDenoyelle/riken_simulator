@@ -68,6 +68,9 @@ Source('clock_domain.cc')
 Source('voltage_domain.cc')
 Source('se_signal.cc')
 Source('linear_solver.cc')
+Source('bitmask.cc')
+Source('numa.cc')
+Source('mem_pool.cc')
 Source('system.cc')
 Source('dvfs_handler.cc')
 Source('clocked_object.cc')
@@ -112,4 +115,7 @@ DebugFlag('ClockDomain')
 DebugFlag('VoltageDomain')
 DebugFlag('DVFS')
 
+GTest('mem_pool.test', 'mem_pool.test.cc', 'mem_pool.cc')
+
 CompoundFlag('SyscallAll', [ 'SyscallBase', 'SyscallVerbose'])
+

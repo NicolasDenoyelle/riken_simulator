@@ -100,6 +100,20 @@ class AddrRange
           intlvMatch(0)
     {}
 
+    /** Copy constructor **/
+    AddrRange(const AddrRange &r)
+        : _start(r._start), _end(r._end), intlvHighBit(r.intlvHighBit),
+          xorHighBit(r.xorHighBit), intlvBits(r.intlvBits),
+          intlvMatch(r.intlvMatch) {}
+
+    /** Copy constructor with custom start and end **/
+    AddrRange(const AddrRange r, const Addr start,
+              const size_t size)
+        : _start(start),
+          _end(((start >> r.intlvBits) + size) << r.intlvBits),
+          intlvHighBit(r.intlvHighBit), xorHighBit(r.xorHighBit),
+          intlvBits(r.intlvBits), intlvMatch(r.intlvMatch) {}
+
     AddrRange(Addr _start, Addr _end, uint8_t _intlv_high_bit,
               uint8_t _xor_high_bit, uint8_t _intlv_bits,
               uint8_t _intlv_match)
@@ -270,6 +284,39 @@ class AddrRange
             r.intlvHighBit == intlvHighBit &&
             r.xorHighBit == xorHighBit &&
             r.intlvBits == intlvBits;
+    }
+
+    /**
+     * Extend Addr range size by appending another range if:
+     * * other range is the continuation of this range,
+     * * interleave bits are the sames.
+     * return true if appended.
+     **/
+    bool append(const AddrRange &r) {
+      if (r._start != _end + 1 || r.intlvHighBit != intlvHighBit ||
+          r.xorHighBit != xorHighBit || r.intlvBits != intlvBits)
+        return false;
+      _end = r._end;
+      return true;
+    }
+
+    /**
+     * Split a range at a specific address and store the
+     *resulting ranges in lhs and rhs.
+     **/
+    void splitAt(const Addr split, AddrRange &lhs, AddrRange &rhs) {
+      if (split <= _start || split >= _end)
+        fatal("Cannot split an AddrRange out of "
+              "bounds\n");
+
+      lhs._start = _start;
+      rhs._end = _end;
+      lhs._end = split - 1;
+      rhs._start = split;
+    }
+
+    void split(const size_t size, AddrRange &lhs, AddrRange &rhs) {
+      splitAt(((_start >> intlvBits) + size) << intlvBits, lhs, rhs);
     }
 
     /**

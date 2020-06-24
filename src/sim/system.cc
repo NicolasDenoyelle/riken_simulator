@@ -56,9 +56,11 @@
 #include "base/str.hh"
 #include "base/trace.hh"
 #include "config/use_kvm.hh"
+
 #if USE_KVM
 #include "cpu/kvm/base.hh"
 #include "cpu/kvm/vm.hh"
+
 #endif
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
@@ -90,7 +92,6 @@ int System::numSystemsRunning = 0;
 System::System(Params *p)
     : MemObject(p), _systemPort("system_port", this),
       multiThread(p->multi_thread),
-      pagePtr(0),
       init_param(p->init_param),
       physProxy(_systemPort, p->cache_line_size),
       kernelSymtab(nullptr),
@@ -199,6 +200,8 @@ System::System(Params *p)
     // Set back pointers to the system in all memories
     for (int x = 0; x < params()->memories.size(); x++)
         params()->memories[x]->system(this);
+
+    memoryPool.init(physmem.getConfAddrRanges());
 }
 
 System::~System()
@@ -371,19 +374,8 @@ System::validKvmEnvironment() const
 Addr
 System::allocPhysPages(int npages)
 {
-    Addr return_addr = pagePtr << PageShift;
-    pagePtr += npages;
-
-    Addr next_return_addr = pagePtr << PageShift;
-
-    AddrRange m5opRange(0xffff0000, 0xffffffff);
-    if (m5opRange.contains(next_return_addr)) {
-        warn("Reached m5ops MMIO region\n");
-        return_addr = 0xffffffff;
-        pagePtr = 0xffffffff >> PageShift;
-    }
-
-    if ((pagePtr << PageShift) > physmem.totalSize())
+    Addr return_addr;
+    if (memoryPool.allocate(npages, return_addr) == ENOMEM)
         fatal("Out of memory, please increase size of physical memory.");
     return return_addr;
 }
@@ -391,19 +383,19 @@ System::allocPhysPages(int npages)
 Addr
 System::memSize() const
 {
-    return physmem.totalSize();
+    return memoryPool.size();
 }
 
 Addr
 System::freeMemSize() const
 {
-   return physmem.totalSize() - (pagePtr << PageShift);
+   return memoryPool.available();
 }
 
 bool
 System::isMemAddr(Addr addr) const
 {
-    return physmem.isMemAddr(addr);
+    return memoryPool.contains(addr);
 }
 
 void
@@ -417,7 +409,7 @@ System::serialize(CheckpointOut &cp) const
 {
     if (FullSystem)
         kernelSymtab->serialize("kernel_symtab", cp);
-    SERIALIZE_SCALAR(pagePtr);
+    memoryPool.serialize(cp);
     serializeSymtab(cp);
 
     // also serialize the memories in the system
@@ -430,7 +422,7 @@ System::unserialize(CheckpointIn &cp)
 {
     if (FullSystem)
         kernelSymtab->unserialize("kernel_symtab", cp);
-    UNSERIALIZE_SCALAR(pagePtr);
+    memoryPool.unserialize(cp);
     unserializeSymtab(cp);
 
     // also unserialize the memories in the system

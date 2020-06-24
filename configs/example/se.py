@@ -51,7 +51,7 @@ import os
 import m5
 from m5.defines import buildEnv
 from m5.objects import *
-from m5.util import addToPath, fatal, warn
+from m5.util import addToPath, fatal, warn, convert
 from m5.stats import periodicStatDump
 
 addToPath('../')
@@ -128,6 +128,15 @@ parser = optparse.OptionParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
 
+parser.add_option("--add-mem-type", type="choice", default=[],
+                  choices=MemConfig.mem_names(),
+                  help = "Additional types of memory to use",
+                  action='append')
+parser.add_option("--add-mem-size", action="append", type="string",
+                  default=[],
+                  help="""Specify the physical memory size of additional
+                  memories""")
+
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
 
@@ -181,10 +190,31 @@ if options.smt and options.num_cpus > 1:
     fatal("You cannot use SMT with multiple CPUs!")
 
 np = options.num_cpus
-system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
-                mem_mode = test_mem_mode,
-                mem_ranges = [AddrRange(options.mem_size)],
-                cache_line_size = options.cacheline_size)
+opt_mem_types = [ options.mem_type ] + options.add_mem_type
+opt_mem_sizes = [ options.mem_size ] + options.add_mem_size
+if len(opt_mem_sizes) not in [1, len(opt_mem_types)]:
+    fatal("""Memory size must be either a single values for all memories
+    or one value per memory.""")
+
+# Setting memory ranges
+opt_mem_sizes = [ convert.toMemorySize(s) for s in opt_mem_sizes ]
+if len(opt_mem_sizes) == 1:
+    s = opt_mem_sizes[0]
+    ranges = [
+        AddrRange(start=i*s, size=s) for i in range(len(opt_mem_types))
+    ]
+else:
+    starts = [0] + [
+        sum(opt_mem_sizes[:i]) for i in range(1, len(opt_mem_sizes))
+    ]
+    ranges = [
+        AddrRange(start=z[0], size=z[1]) for z in zip(starts, opt_mem_sizes)
+    ]
+
+system=System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
+              mem_mode = test_mem_mode,
+              mem_ranges = ranges,
+              cache_line_size = options.cacheline_size)
 
 if numThreads > 1:
     system.multi_thread = True
@@ -285,7 +315,8 @@ if options.ruby:
             system.cpu[i].itb.walker.port = ruby_port.slave
             system.cpu[i].dtb.walker.port = ruby_port.slave
 else:
-    MemClass = Simulation.setMemClass(options)
+    opt_mem_types = [ options.mem_type ] + options.add_mem_type
+    # MemClass = [ ObjectList.mem_list.get(mt) for mt in opt_mem_types ]
     system.membus = SystemXBar()
     system.membus.width = options.mem_bus_width
     system.membus.respwidth = options.mem_resp_width

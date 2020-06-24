@@ -48,6 +48,7 @@
 #include "sim/fd_array.hh"
 #include "sim/fd_entry.hh"
 #include "sim/mem_state.hh"
+#include "sim/numa.hh"
 #include "sim/sim_object.hh"
 
 struct ProcessParams;
@@ -62,6 +63,11 @@ class ThreadContext;
 
 class Process : public SimObject
 {
+  private:
+    NUMA::MemPolicy mempolicy; // Process memory binding policy.
+    const NUMA::Bitmask allowed_nodeset; // Process alllowed nodeset.
+    size_t interleave_node;
+
   public:
     Process(ProcessParams *params, EmulationPageTable *pTable,
             ObjectFile *obj_file);
@@ -114,7 +120,56 @@ class Process : public SimObject
     // override of virtual SimObject method: register statistics
     void regStats() override;
 
-    void allocateMem(Addr vaddr, int64_t size, bool clobber = false);
+    // Allocate physical memory with process mempolicy.
+    void allocateMem(Addr vaddr, int64_t size, bool clobber = false,
+                     NUMA::MemPolicy const* policy = NULL);
+
+    /**
+     * Remap pages to another numa node.
+     *
+     * @param vaddr: The virtual address to move. Address must be aligned
+     * on a page boundary.
+     * @param size: The size to move. Size is extended to be a multiple of page
+     * size.
+     * @param mempolicy: The memory policy to apply when moving pages.
+     ** mode:
+     *  MPOL_DEFAULT: Will use process wide policy.
+     *  Note: nodeset must be empty.
+     *  MPOL_BIND: Will fill nodes of nodeset in a round-robin fashion.
+     *  Note: nodeset must not be empty.
+     *  MPOL_PREFERRED: Same as MPOL_BIND but will fallback to use other
+     *  available nodes if designated nodes are full.
+     *  MPOL_INTERLEAVE: Use next process interleave node in nodeset to move
+     *  pages on target nodes in a round-robin fashion.
+     *  Note: nodeset must not be empty.
+     * flags: Ignored.
+     *
+     * Note: Upon ENOMEM or EFAULT error, some pages may have been remapped.
+     *
+     * @return -EFAULT: If vaddr is not mapped in page table.
+     * @return -EFAULT: If policy nodeset is out of allowed_nodeset.
+     * @return -EINVAL: If vaddr is not a multiple of page size.
+     * @return -EINVAL: If vaddr  size < vaddr.
+     * @return -EINVAL: If policy is MPOL_DEFAULT and nodeset is not empty.
+     * @return -EINVAL: If policy is MPOL_BIND or MPOL_INTERLEAVE and nodeset
+     * is empty.
+     * @return -ENOMEM: If there is not enough memory on target nodes to
+     * apply policy.
+     * @return 0 on success.
+     *
+     * @see mbind()
+     **/
+    int movePages(Addr vaddr,
+                  const int64_t size,
+                  const NUMA::MemPolicy& mempolicy);
+
+    /**
+     * Set mempolicy with the memory policy of a range of addresses.
+     **/
+    int getMemPolicy(Addr vaddr, int64_t size, NUMA::MemPolicy& mempolicy);
+
+    // Access process memory policy
+    NUMA::MemPolicy& getMemPolicy() { return mempolicy; }
 
     /// Attempt to fix up a fault at vaddr by allocating a page on the stack.
     /// @return Whether the fault has been fixed.

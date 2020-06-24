@@ -155,7 +155,11 @@ def config_mem(options, system):
     """
 
     # Mandatory options
-    opt_mem_type = options.mem_type
+    opt_mem_types = [ options.mem_type ] + options.add_mem_type
+    if "HMC_2500_1x32" in  opt_mem_types and\
+       not all([ mt == "HMC_2500_1x32" for mt in opt_mem_types ]):
+        fatal("Can't mix 'HMC_2500_1x32' memory type with other memories.")
+
     opt_mem_channels = options.mem_channels
 
     # Optional options
@@ -164,8 +168,10 @@ def config_mem(options, system):
                                          None)
     opt_elastic_trace_en = getattr(options, "elastic_trace_en", False)
     opt_mem_ranks = getattr(options, "mem_ranks", None)
+    opt_dram_powerdown = getattr(options, "enable_dram_powerdown", None)
+    opt_mem_channels_intlv = getattr(options, "mem_channels_intlv", 128)
 
-    if opt_mem_type == "HMC_2500_1x32":
+    if "HMC_2500_1x32" in opt_mem_types:
         HMChost = HMC.config_hmc_host_ctrl(options, system)
         HMC.config_hmc_dev(options, system, HMChost.hmc_host)
         subsystem = system.hmc_dev
@@ -180,7 +186,7 @@ def config_mem(options, system):
             port_data=opt_tlm_memory,
             port=system.membus.master,
             addr_ranges=system.mem_ranges)
-        system.kernel_addr_check = False
+        system.workload.addr_check = False
         return
 
     if opt_external_memory_system:
@@ -188,7 +194,7 @@ def config_mem(options, system):
             port_type=opt_external_memory_system,
             port_data="init_mem0", port=xbar.master,
             addr_ranges=system.mem_ranges)
-        subsystem.kernel_addr_check = False
+        subsystem.workload.addr_check = False
         return
 
     nbr_mem_ctrls = opt_mem_channels
@@ -198,24 +204,29 @@ def config_mem(options, system):
     if 2 ** intlv_bits != nbr_mem_ctrls:
         fatal("Number of memory channels must be a power of 2")
 
-    cls = get(opt_mem_type)
     mem_ctrls = []
 
-    if opt_elastic_trace_en and not issubclass(cls, m5.objects.SimpleMemory):
-        fatal("When elastic trace is enabled, configure mem-type as "
-                "simple-mem.")
+    for mem_i in range(len(opt_mem_types)):
+        cls = get(opt_mem_types[mem_i])
+        if opt_elastic_trace_en and not issubclass(cls,
+                                                   m5.objects.SimpleMemory):
+            fatal("When elastic trace is enabled, configure mem-type as "
+                  "simple-mem.")
 
-    # The default behaviour is to interleave memory channels on 128
-    # byte granularity, or cache line granularity if larger than 128
-    # byte. This value is based on the locality seen across a large
-    # range of workloads.
-    intlv_size = max(128, system.cache_line_size.value)
+        # The default behaviour is to interleave memory channels on 128
+        # byte granularity, or cache line granularity if larger than 128
+        # byte. This value is based on the locality seen across a large
+        # range of workloads.
+        intlv_size = max(opt_mem_channels_intlv, system.cache_line_size.value)
 
-    # For every range (most systems will only have one), create an
-    # array of controllers and set their parameters to match their
-    # address mapping in the case of a DRAM
-    for r in system.mem_ranges:
-        for i in xrange(nbr_mem_ctrls):
+
+        # -x- For every range (most systems will only have one), create an
+        # -x- array of controllers and set their parameters to match their
+        # -x- address mapping in the case of a DRAM
+        # Select memory range assign to this memory
+        r = system.mem_ranges[mem_i]
+
+        for i in range(nbr_mem_ctrls):
             mem_ctrl = create_mem_ctrl(cls, r, i, nbr_mem_ctrls, intlv_bits,
                                        intlv_size)
             # Set the number of ranks based on the command-line
@@ -223,18 +234,22 @@ def config_mem(options, system):
             if issubclass(cls, m5.objects.DRAMCtrl) and opt_mem_ranks:
                 mem_ctrl.ranks_per_channel = opt_mem_ranks
 
+            # Enable low-power DRAM states if option is set
+            if issubclass(cls, m5.objects.DRAMCtrl) and \
+               hasattr(mem_ctrl, 'enable_dram_powerdown'):
+                mem_ctrl.enable_dram_powerdown = opt_dram_powerdown
+
             if opt_elastic_trace_en:
                 mem_ctrl.latency = '1ns'
                 print("For elastic trace, over-riding Simple Memory "
-                    "latency to 1ns.")
+                      "latency to 1ns.")
 
             mem_ctrls.append(mem_ctrl)
-
     subsystem.mem_ctrls = mem_ctrls
 
     # Connect the controllers to the membus
-    for i in xrange(len(subsystem.mem_ctrls)):
-        if opt_mem_type == "HMC_2500_1x32":
+    for i in range(len(subsystem.mem_ctrls)):
+        if "HMC_2500_1x32" in opt_mem_types:
             subsystem.mem_ctrls[i].port = xbar[i/4].master
             # Set memory device size. There is an independent controller for
             # each vault. All vaults are same size.

@@ -63,6 +63,7 @@
 #include "mem/port_proxy.hh"
 #include "params/System.hh"
 #include "sim/futex_map.hh"
+#include "sim/mem_pool.hh"
 #include "sim/se_signal.hh"
 
 /**
@@ -209,7 +210,9 @@ class System : public MemObject
      * system.  These threads could be Active or Suspended. */
     int numRunningContexts();
 
-    Addr pagePtr;
+    NUMAMemPool memoryPool;
+    NUMAMemPool& getMemoryPool() { return memoryPool; }
+    const NUMAMemPool& getMemoryPool() const { return memoryPool; }
 
     uint64_t init_param;
 
@@ -326,13 +329,13 @@ class System : public MemObject
 
   public:
 
-    /** Request an id used to create a request object in the system. All objects
-     * that intend to issues requests into the memory system must request an id
-     * in the init() phase of startup. All master ids must be fixed by the
-     * regStats() phase that immediately precedes it. This allows objects in
-     * the memory system to understand how many masters may exist and
-     * appropriately name the bins of their per-master stats before the stats
-     * are finalized
+    /** Request an id used to create a request object in the system. All
+     * objects that intend to issues requests into the memory system must
+     * request an id in the init() phase of startup. All master ids must be
+     * fixed by the regStats() phase that immediately precedes it. This allows
+     * objects in the memory system to understand how many masters may exist
+     * and appropriately name the bins of their per-master stats before the
+     * stats are finalized
      */
     MasterID getMasterId(std::string req_name);
 

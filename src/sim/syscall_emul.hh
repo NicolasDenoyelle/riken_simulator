@@ -1386,10 +1386,10 @@ cloneFunc(SyscallDesc *desc, int callnum, Process *p, ThreadContext *tc)
         ctc->setIntReg(TheISA::StackPointerReg, newStack);
 #else
         ctc->setIntReg(TheISA::StackPointerReg, newStack);
-        ctc->setIntReg(43, newStack);
+    ctc->setIntReg(43, newStack);
 #endif
-        cp->setSyscallReturn(ctc, 0);
-        ctc->setIntReg(0, 0);
+    cp->setSyscallReturn(ctc, 0);
+    ctc->setIntReg(0, 0);
 #if THE_ISA == ALPHA_ISA
     ctc->setIntReg(TheISA::SyscallSuccessReg, 0);
 #elif THE_ISA == SPARC_ISA
@@ -1686,6 +1686,18 @@ mmap2Func(SyscallDesc *desc, int num, Process *p, ThreadContext *tc)
 {
     return mmapImpl<OS>(desc, num, p, tc, true);
 }
+
+/// Target mbind() handler.
+/// This is not OS specific, though it is a linux system call.
+/// Indeed, mapping between physical memories and virtual addresses
+/// is a gem5 internal, it can be done without OS help.
+SyscallReturn mbindFunc(SyscallDesc *desc, int num, Process *p,
+                        ThreadContext *tc);
+
+/// Implementation of get_mempolicy syscall emulation.
+/// This is not OS specific, see mbindFunc().
+SyscallReturn getMemPolicyFunc(SyscallDesc *desc, int num, Process *p,
+                               ThreadContext *tc);
 
 /// Target getrlimit() handler.
 template <class OS>

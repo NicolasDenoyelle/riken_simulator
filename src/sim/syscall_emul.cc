@@ -43,7 +43,10 @@
 #include "base/trace.hh"
 #include "config/the_isa.hh"
 #include "cpu/thread_context.hh"
+#include "mem/fs_translating_port_proxy.hh"
 #include "mem/page_table.hh"
+#include "mem/se_translating_port_proxy.hh"
+#include "sim/numa.hh"
 #include "sim/process.hh"
 #include "sim/sim_exit.hh"
 #include "sim/syscall_debug_macros.hh"
@@ -369,16 +372,114 @@ _llseekFunc(SyscallDesc *desc, int num, Process *p, ThreadContext *tc)
     return 0;
 }
 
-
-SyscallReturn
-munmapFunc(SyscallDesc *desc, int num, Process *p, ThreadContext *tc)
-{
+SyscallReturn munmapFunc(SyscallDesc *desc, int num, Process *p,
+                         ThreadContext *tc) {
     // With mmap more fully implemented, it might be worthwhile to bite
     // the bullet and implement munmap. Should allow us to reuse simulated
     // memory.
     return 0;
 }
 
+SyscallReturn mbindFunc(SyscallDesc *desc, int num, Process *p,
+                        ThreadContext *tc) {
+    NUMA::MemPolicy sim_policy = NUMA::MemPolicy();
+
+    int index = 0;
+    Addr addr = p->getSyscallArg(tc, index);
+    uint64_t len = p->getSyscallArg(tc, index);
+    int mode = p->getSyscallArg(tc, index);
+    Addr nodemask = p->getSyscallArg(tc, index);
+    uint64_t maxnode = p->getSyscallArg(tc, index);
+    int flags = p->getSyscallArg(tc, index);
+
+    // mbind args
+    const size_t masksize = (maxnode / 8) + (maxnode % 8 ? 1 : 0);
+
+    if (maxnode > NUMA::MAXNUMANODES) return -EINVAL;
+    tc->getVirtProxy().readBlob(nodemask, (uint8_t *)sim_policy.mask(),
+                                masksize);
+
+    switch (mode) {
+        case NUMA::mode::MBIND_MPOL_DEFAULT:
+            break;
+        case NUMA::mode::MBIND_MPOL_PREFERRED:
+            break;
+        case NUMA::mode::MBIND_MPOL_BIND:
+            break;
+        case NUMA::mode::MBIND_MPOL_INTERLEAVE:
+            break;
+        case NUMA::mode::MBIND_MPOL_LOCAL:
+            break;
+        default:
+            return -EINVAL;
+    }
+    sim_policy.mode() = static_cast<NUMA::mode>(mode);
+
+    switch (flags) {
+            // This flag is ignored.
+            // gem5 does not wait a page fault to map pages.
+            // Therefore, page is already on a node when mbind is called,
+            // and it has to be remapped anyway.
+        case NUMA::flags::MBIND_MPOL_MF_STRICT:
+            break;
+        case NUMA::flags::MBIND_MPOL_MF_MOVE:
+            break;
+            // Do not check permissions. YOLO
+            // We want to be able to remap a process memory
+            // from another process without permission.
+        case NUMA::flags::MBIND_MPOL_MF_MOVE_ALL:
+            break;
+        default:
+            return -EINVAL;
+    }
+    sim_policy.flags() = flags;
+
+    return p->movePages(addr, len, sim_policy);
+}
+
+SyscallReturn getMemPolicyFunc(SyscallDesc *desc, int num, Process *p,
+                               ThreadContext *tc) {
+    int err;
+    NUMA::MemPolicy sim_policy;
+
+    int index = 0;
+    Addr mode = p->getSyscallArg(tc, index);
+    Addr nodemask = p->getSyscallArg(tc, index);
+    uint64_t maxnode = p->getSyscallArg(tc, index);
+    Addr vaddr = p->getSyscallArg(tc, index);
+    uint64_t flags = p->getSyscallArg(tc, index);
+
+    const size_t masksize = (maxnode / 8) + (maxnode % 8 ? 1 : 0);
+
+    if (flags == 0 && vaddr != 0) return -EINVAL;
+
+    if ((flags & NUMA::flags::GET_MEMPOLICY_MPOL_F_MEMS_ALLOWED) &&
+        (flags & (NUMA::flags::GET_MEMPOLICY_MPOL_F_NODE |
+                  NUMA::flags::GET_MEMPOLICY_MPOL_F_ADDR)))
+        return -EINVAL;
+
+    if (maxnode >= NUMA::MAXNUMANODES) return -EINVAL;
+
+    if (nodemask != 0)
+        tc->getVirtProxy().readBlob(nodemask, (uint8_t *)sim_policy.mask(),
+                                    masksize);
+    if (mode != 0)
+        tc->getVirtProxy().readBlob(mode, (uint8_t *)(&sim_policy.mode()),
+                                    sizeof(int));
+
+    sim_policy.flags() = flags;
+
+    if ((err = p->getMemPolicy(vaddr, 1, sim_policy)) != 0) return err;
+
+    if (mode != 0)
+        tc->getVirtProxy().writeBlob(mode, (uint8_t *)(&sim_policy.mode()),
+                                     sizeof(int));
+    if (nodemask != 0)
+        tc->getVirtProxy().writeBlob(nodemask, (uint8_t *)(sim_policy.mask()),
+                                     masksize);
+
+    return 0;
+}
 
 const char *hostname = "m5.eecs.umich.edu";
 
@@ -542,12 +643,14 @@ renameFunc(SyscallDesc *desc, int num, Process *p, ThreadContext *tc)
     string old_name;
 
     int index = 0;
-    if (!tc->getMemProxy().tryReadString(old_name, p->getSyscallArg(tc, index)))
+    if (!tc->getMemProxy().tryReadString(old_name,
+                                         p->getSyscallArg(tc, index)))
         return -EFAULT;
 
     string new_name;
 
-    if (!tc->getMemProxy().tryReadString(new_name, p->getSyscallArg(tc, index)))
+    if (!tc->getMemProxy().tryReadString(new_name,
+                                         p->getSyscallArg(tc, index)))
         return -EFAULT;
 
     // Adjust path for current working directory
@@ -599,7 +702,8 @@ truncate64Func(SyscallDesc *desc, int num,
     int index = 0;
     string path;
 
-    if (!tc->getMemProxy().tryReadString(path, process->getSyscallArg(tc, index)))
+    if (!tc->getMemProxy().tryReadString(path,
+                                         process->getSyscallArg(tc, index)))
         return -EFAULT;
 
     int64_t length = process->getSyscallArg(tc, index, 64);
