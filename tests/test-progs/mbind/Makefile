@@ -1,5 +1,5 @@
 LDFLAGS=
-CFLAGS=-Wall -Wextra -Werror -rdynamic -fopenmp
+CFLAGS=-Wall -Wextra -Werror -static -fopenmp
 
 SRC=numa.c
 OBJ=$(patsubst %.c, %.o, $(SRC))
