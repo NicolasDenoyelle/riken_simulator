@@ -72,7 +72,7 @@ ContiguousMemPool::init(AddrRange range)
 {
     Addr start = range.start() >> TheISA::PageShift;
     Addr end = range.end() >> TheISA::PageShift;
-    _range = AddrRange(range, start, end - start);
+    _range = AddrRange(range, start, end + 1 - start);
     _pool.clear();
     _pool.push_back(_range);
     _isDefragmented = true;
@@ -175,6 +175,9 @@ ContiguousMemPool::allocate(const size_t npage, Addr& addr)
     }
 
     // Lucky
+    if (c.size() == npage)
+        return 0;
+
     AddrRange lhs, rhs;
     c.split(npage, lhs, rhs);
 
@@ -193,6 +196,7 @@ ContiguousMemPool::allocate(const size_t npage, Addr& addr)
     return 0;
 }
 
+#ifndef TEST
 void ContiguousMemPool::serialize(CheckpointOut& cp) const {
     paramOut(cp, "addr_start", _range.start());
     paramOut(cp, "addr_end", _range.end());
@@ -221,6 +225,7 @@ void ContiguousMemPool::unserialize(CheckpointIn& cp){
         _pool.push_back(RangeEx(start, end));
     }
 }
+#endif
 
 //------------------------------------------------------------------------
 // NUMAMemPool implementation
@@ -327,6 +332,7 @@ NUMAMemPool::allocate(const size_t npage, Addr& addr, const unsigned nid)
     return _pool.at(nid).allocate(npage, addr);
 }
 
+#ifndef TEST
 void NUMAMemPool::serialize(CheckpointOut& cp) const {
     size_t count = 0;
 
@@ -355,3 +361,4 @@ void NUMAMemPool::unserialize(CheckpointIn& cp){
     for (auto pool = _pool.begin(); pool != _pool.end(); pool++)
         _addrMap.insert(pool->range(), &(*pool));
 }
+#endif

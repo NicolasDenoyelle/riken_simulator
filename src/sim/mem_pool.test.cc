@@ -3,14 +3,16 @@
 #include <deque>
 #include <vector>
 
-#include "base/addr_range.hh"
-#include "sim/mem_pool.hh"
+#ifndef TEST
+#define TEST
+#endif
+#include "sim/mem_pool.cc"
 
 const Addr page_size = (1UL<<TheISA::PageShift);
 
 TEST(MemoryPoolTest, ContiguousMemPool)
 {
-    AddrRange range = RangeSize(1UL << 10, 1UL << 18); // 64 pages
+    AddrRange range = RangeSize(page_size, 64 * page_size); // 64 pages
     ContiguousMemPool pool(range);
 
     const size_t size = pool.size();
@@ -54,8 +56,9 @@ TEST(MemoryPoolTest, ContiguousMemPool)
 TEST(MemoryPoolTest, NUMAMemPoolGenericTests)
 {
     AddrRangeList numa_nodes = {
-        RangeSize(2*page_size, 1UL << 18),
-        RangeSize(3*page_size + (1UL << 18), (1UL << 19))};
+        RangeSize(2*page_size, 16*page_size),
+        RangeSize(18*page_size, 32*page_size) // hole of one page
+    };
 
     NUMAMemPool pool(numa_nodes);
 

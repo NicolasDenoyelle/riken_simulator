@@ -110,7 +110,7 @@ class AddrRange
     AddrRange(const AddrRange r, const Addr start,
               const size_t size)
         : _start(start),
-          _end(((start >> r.intlvBits) + size) << r.intlvBits),
+          _end(((start >> r.intlvBits) + size-1) << r.intlvBits),
           intlvHighBit(r.intlvHighBit), xorHighBit(r.xorHighBit),
           intlvBits(r.intlvBits), intlvMatch(r.intlvMatch) {}
 

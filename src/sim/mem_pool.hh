@@ -6,13 +6,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "arch/isa_traits.hh"
 #include "arch/utility.hh"
 #include "base/addr_range.hh"
 #include "base/addr_range_map.hh"
 #include "base/types.hh"
+#ifndef TEST
 #include "mem/physical.hh"
 #include "sim/serialize.hh"
+#endif
 
 /**
  * Physical Memory Allocator Abstraction.
@@ -24,8 +25,7 @@ class MemoryPool {
     virtual Addr start() const = 0;
 
     /**
-     * All address greater or equal to end are not
-     * included in the pool.
+     * Address equal to end is included in the pool.
      **/
     virtual Addr end() const = 0;
 
@@ -61,11 +61,13 @@ class MemoryPool {
     virtual int free(const size_t npage, const Addr addr) = 0;
 };
 
+#ifndef TEST
 /**
  * MemoryPool used in "sim/system.cc" to provide physical
  * memory.
  **/
-class LegacyMemPool : public MemoryPool, public Serializable {
+class LegacyMemPool : public MemoryPool , public Serializable
+{
   private:
     Addr pagePtr;
     PhysicalMemory* physmem;
@@ -124,10 +126,10 @@ class LegacyMemPool : public MemoryPool, public Serializable {
         pagePtr = 0;
         return 0;
     }
-
     void serialize(CheckpointOut& cp) const { SERIALIZE_SCALAR(pagePtr); }
     void unserialize(CheckpointIn& cp) { UNSERIALIZE_SCALAR(pagePtr); }
 };
+#endif
 
 /**
  * MemoryPool implementation for continuous and contiguous
@@ -135,7 +137,11 @@ class LegacyMemPool : public MemoryPool, public Serializable {
  * lot of fragmentation. Hopefully, this should not happen in
  * physical memory.
  **/
-class ContiguousMemPool : public MemoryPool, public Serializable {
+class ContiguousMemPool : public MemoryPool
+#ifndef TEST
+                        , public Serializable
+#endif
+{
   private: // Attributes
     AddrRange _range;            // Memory pool range.
     std::deque<AddrRange> _pool; // Available memory
@@ -165,13 +171,18 @@ class ContiguousMemPool : public MemoryPool, public Serializable {
     size_t available() const;
     int allocate(const size_t npages, Addr &addr);
     int free(const size_t npages, const Addr addr);
-
+#ifndef TEST
     void serialize(CheckpointOut& cp) const;
     void unserialize(CheckpointIn& cp);
+#endif
 };
 
 /** MemoryPool implementation for a set of memories. **/
-class NUMAMemPool : public MemoryPool, public Serializable {
+class NUMAMemPool : public MemoryPool
+#ifndef TEST
+                  , public Serializable
+#endif
+{
   private:
     // Allocator for each memory
     std::vector<ContiguousMemPool> _pool;
@@ -208,9 +219,10 @@ class NUMAMemPool : public MemoryPool, public Serializable {
     int free(const size_t npage, const Addr addr);
     int allocate(const size_t npage, Addr &addr);
     int allocate(const size_t npage, Addr &addr, const unsigned nid);
-
+#ifndef TEST
     void serialize(CheckpointOut& cp) const;
     void unserialize(CheckpointIn& cp);
+#endif
 };
 
 #endif // __MEMPOOL_HH__

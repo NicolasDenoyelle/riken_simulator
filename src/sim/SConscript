@@ -115,7 +115,7 @@ DebugFlag('ClockDomain')
 DebugFlag('VoltageDomain')
 DebugFlag('DVFS')
 
-GTest('mem_pool.test', 'mem_pool.test.cc', 'mem_pool.cc')
+GTest('mem_pool.test', 'mem_pool.test.cc')
 
 CompoundFlag('SyscallAll', [ 'SyscallBase', 'SyscallVerbose'])
 
