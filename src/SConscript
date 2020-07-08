@@ -1233,3 +1233,6 @@ if 'perf' in needed_envs:
             CCFLAGS = Split(ccflags['perf']),
             CPPDEFINES = ['NDEBUG', 'TRACING_ON=0'],
             LINKFLAGS = Split(ldflags['perf']))
+
+env.Append(CCFLAGS='-Wno-implicit-fallthrough')
+env.Append(CCFLAGS='-Wno-bool-operation')
