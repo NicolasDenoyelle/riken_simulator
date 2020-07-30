@@ -136,6 +136,8 @@ parser.add_option("--add-mem-size", action="append", type="string",
                   default=[],
                   help="""Specify the physical memory size of additional
                   memories""")
+parser.add_option("--full-system", action="store_true", default=False,
+                  help="""Set full_system param to True.""")
 
 if '--ruby' in sys.argv:
     Ruby.define_options(parser)
@@ -330,5 +332,5 @@ else:
 if options.stat_dump_period != 0 :
     periodicStatDump(options.stat_dump_period)
 
-root = Root(full_system = False, system = system)
+root = Root(full_system = options.full_system, system = system)
 Simulation.run(options, root, system, FutureClass)

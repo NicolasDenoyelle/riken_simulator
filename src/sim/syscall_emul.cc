@@ -400,38 +400,25 @@ SyscallReturn mbindFunc(SyscallDesc *desc, int num, Process *p,
                                 masksize);
 
     switch (mode) {
-        case NUMA::mode::MBIND_MPOL_DEFAULT:
+        case NUMA::MPOL_DEFAULT:
             break;
-        case NUMA::mode::MBIND_MPOL_PREFERRED:
+        case NUMA::MPOL_PREFERRED:
             break;
-        case NUMA::mode::MBIND_MPOL_BIND:
+        case NUMA::MPOL_BIND:
             break;
-        case NUMA::mode::MBIND_MPOL_INTERLEAVE:
+        case NUMA::MPOL_INTERLEAVE:
             break;
-        case NUMA::mode::MBIND_MPOL_LOCAL:
+        case NUMA::MPOL_LOCAL:
             break;
         default:
             return -EINVAL;
     }
     sim_policy.mode() = static_cast<NUMA::mode>(mode);
 
-    switch (flags) {
-            // This flag is ignored.
-            // gem5 does not wait a page fault to map pages.
-            // Therefore, page is already on a node when mbind is called,
-            // and it has to be remapped anyway.
-        case NUMA::flags::MBIND_MPOL_MF_STRICT:
-            break;
-        case NUMA::flags::MBIND_MPOL_MF_MOVE:
-            break;
-            // Do not check permissions. YOLO
-            // We want to be able to remap a process memory
-            // from another process without permission.
-        case NUMA::flags::MBIND_MPOL_MF_MOVE_ALL:
-            break;
-        default:
-            return -EINVAL;
-    }
+    if (flags & ~(NUMA::MPOL_MF_STRICT |
+                  NUMA::MPOL_MF_MOVE |
+                  NUMA::MPOL_MF_MOVE_ALL))
+        return -EINVAL;
     sim_policy.flags() = flags;
 
     return p->movePages(addr, len, sim_policy);
@@ -453,9 +440,8 @@ SyscallReturn getMemPolicyFunc(SyscallDesc *desc, int num, Process *p,
 
     if (flags == 0 && vaddr != 0) return -EINVAL;
 
-    if ((flags & NUMA::flags::GET_MEMPOLICY_MPOL_F_MEMS_ALLOWED) &&
-        (flags & (NUMA::flags::GET_MEMPOLICY_MPOL_F_NODE |
-                  NUMA::flags::GET_MEMPOLICY_MPOL_F_ADDR)))
+    if ((flags & NUMA::MPOL_F_MEMS_ALLOWED) &&
+        (flags & (NUMA::MPOL_F_NODE | NUMA::MPOL_F_ADDR)))
         return -EINVAL;
 
     if (maxnode >= NUMA::MAXNUMANODES) return -EINVAL;

@@ -273,38 +273,6 @@ class Linux : public OperatingSystem
     static const unsigned TGT_CLONE_NEWPID          = Process::P_CLONE_NEWPID;
     static const unsigned TGT_CLONE_NEWNET          = Process::P_CLONE_NEWNET;
     static const unsigned TGT_CLONE_IO              = Process::P_CLONE_IO;
-
-    // FOR MBIND/GET_MEMPOLICY
-    // for MBIND since linux 2.6.7
-    static const unsigned TGT_MBIND_MPOL_DEFAULT
-        = NUMA::mode::MBIND_MPOL_DEFAULT;
-    static const unsigned TGT_MBIND_MPOL_PREFERRED
-        = NUMA::mode::MBIND_MPOL_PREFERRED;
-    static const unsigned TGT_MBIND_MPOL_BIND
-        = NUMA::mode::MBIND_MPOL_BIND;
-    static const unsigned TGT_MBIND_MPOL_INTERLEAVE
-        = NUMA::mode::MBIND_MPOL_INTERLEAVE;
-    static const unsigned TGT_MBIND_MPOL_LOCAL
-        = NUMA::mode::MBIND_MPOL_LOCAL;
-    static const unsigned TGT_GET_MEMPOLICY_MPOL_F_NODE
-        = NUMA::flags::GET_MEMPOLICY_MPOL_F_NODE;
-    static const unsigned TGT_GET_MEMPOLICY_MPOL_F_ADDR
-        = NUMA::flags::GET_MEMPOLICY_MPOL_F_ADDR;
-    // since linux-2.6.16
-    static const unsigned TGT_MBIND_MPOL_MF_STRICT
-        = NUMA::flags::MBIND_MPOL_MF_STRICT;
-    static const unsigned TGT_MBIND_MPOL_MF_MOVE
-        = NUMA::flags::MBIND_MPOL_MF_MOVE;
-    static const unsigned TGT_MBIND_MPOL_MF_MOVE_ALL
-        = NUMA::flags::MBIND_MPOL_MF_MOVE_ALL;
-    // since linux-2.6.24
-    static const unsigned TGT_GET_MEMPOLICY_MPOL_F_MEMS_ALLOWED
-        = NUMA::flags::GET_MEMPOLICY_MPOL_F_MEMS_ALLOWED;
-    // since linux-2.6.26
-    static const unsigned TGT_MBIND_MPOL_F_STATIC_NODES
-        = NUMA::flags::MBIND_MPOL_F_STATIC_NODES;
-    static const unsigned TGT_MBIND_MPOL_F_RELATIVE_NODES
-        = NUMA::flags::MBIND_MPOL_F_STATIC_NODES;
 }; // class Linux
 
 #endif // __LINUX_HH__

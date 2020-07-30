@@ -2,8 +2,6 @@
 
 #include "numa.h"
 
-#include "numa.c"
-
 #define MAXNODE (NUMA_MAXNODE / (8 * sizeof(unsigned long)))
 
 int main() {

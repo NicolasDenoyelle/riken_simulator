@@ -1,52 +1,49 @@
-#ifndef __NUMA_HH__
-#define __NUMA_HH__
+#ifndef __SIM_NUMA_HH__
+#define __SIM_NUMA_HH__
 
 #include "base/types.hh"
 
 class System;
 
 namespace NUMA {
+
+// Mode argument of mbind system call
+enum mode : uint32_t {
+    MPOL_DEFAULT = 0,
+    MPOL_PREFERRED = 1,
+    MPOL_BIND = 2,
+    MPOL_INTERLEAVE = 3,
+    // This will require to implement a page fault hanler to remap physical
+    // pages close to the process thread. However, as this is written, it
+    // does not seem to be different locality among threads of the processor
+    // and memories. Hence, MPOL_LOCAL is useless.
+    MPOL_LOCAL = 4,
+};
+
+// Or(able) Flags argument of mbind system call.
+const long unsigned int MPOL_MF_STRICT = (1<<0);
+const long unsigned int MPOL_MF_MOVE = (1<<1);
+const long unsigned int MPOL_MF_MOVE_ALL = (1<<2);
+const long unsigned int MPOL_F_NODE = (1<<0);
+const long unsigned int MPOL_F_ADDR = (1<<1);
+const long unsigned int MPOL_F_MEMS_ALLOWED = (1<<2);
+
 /** The system maximum number of NUMANODES **/
 static const long unsigned int MAXNUMANODES = 2048;
 
-enum mode : uint32_t {
-    // FOR MBIND/GET_MEMPOLICY
-    // for MBIND since linux 2.6.7
-    MBIND_MPOL_DEFAULT = 0,
-    MBIND_MPOL_PREFERRED = 1,
-    MBIND_MPOL_BIND = 2,
-    MBIND_MPOL_INTERLEAVE = 3,
-    MBIND_MPOL_LOCAL = 4,
-};
-
-enum flags : uint32_t {
-    // since linux-2.6.16
-    MBIND_MPOL_MF_STRICT = (1 << 0),
-    MBIND_MPOL_MF_MOVE = (1 << 1),
-    MBIND_MPOL_MF_MOVE_ALL = (1 << 2),
-    // since linux-2.6.26
-    MBIND_MPOL_F_STATIC_NODES,
-    MBIND_MPOL_F_RELATIVE_NODES,
-    // since linux 2.6.7
-    GET_MEMPOLICY_MPOL_F_NODE = (1 << 0),
-    GET_MEMPOLICY_MPOL_F_ADDR = (1 << 1),
-    // since linux-2.6.24
-    GET_MEMPOLICY_MPOL_F_MEMS_ALLOWED = (1 << 2),
-};
-
 class Bitmask {
-   public:
+  public:
     /** The maximum number of bits in bitmask **/
     static const long unsigned int MAXBITS = MAXNUMANODES;
 
-   private:
+  private:
     /** The number of basic type elements used to store bits **/
     static const long unsigned int NULONGS =
         MAXBITS / (8 * sizeof(long unsigned int));
     /** The bits **/
     long unsigned int mask[NULONGS];
 
-   public:
+  public:
     /** Empty (zeroed) bitmask **/
     Bitmask();
 
@@ -71,7 +68,7 @@ class Bitmask {
     Bitmask(const char *str);
 
     /** access elements in mask **/
-    long unsigned int *get_mask() { return mask; }
+    long unsigned int* get_mask() { return mask; }
 
     bool operator==(const Bitmask &rhs);
     bool operator<(const Bitmask &rhs);
@@ -90,7 +87,7 @@ class Bitmask {
     void copy_to(Bitmask &dst) const;
     void copy_from(const Bitmask &src);
 
-    unsigned long *ulongs() { return mask; }
+    unsigned long* ulongs() { return mask; }
     unsigned long nulongs() { return NULONGS; }
 
     /** Empty a bitmask with all bits cleared. **/
@@ -184,7 +181,7 @@ class Bitmask {
 
     /**
      * Get index of the next bit set in bitmask.
-     * Will loop if last bit or greater is provided.
+     * If end of mask is reached, return -1.
      **/
     long next(long i) const;
 
@@ -198,39 +195,39 @@ class Bitmask {
     /** Bitmask conversion to string. Char * filled with '0'
      * and '1'. **/
     char *to_string() const;
-};  // class Bitmask
+}; // class Bitmask
 
 /**
  * Memory policy for matching physical pages with system
  *memories.
  **/
 class MemPolicy {
-   private:
+  private:
+
     Bitmask _nodeset;
     enum mode _mode;
     long unsigned int _flags;
 
-   public:
-    MemPolicy()
-        : _nodeset(),
-          _mode(NUMA::mode::MBIND_MPOL_DEFAULT),
-          _flags(NUMA::flags::MBIND_MPOL_MF_MOVE) {}
+  public:
+    MemPolicy(): _nodeset(), _mode(MPOL_DEFAULT), _flags(MPOL_MF_MOVE) {}
 
     MemPolicy(const Bitmask &nodeset, const enum mode mode,
               const long unsigned int &flags)
         : _nodeset(nodeset), _mode(mode), _flags(flags) {}
 
     /** libnuma style arguments. **/
-    MemPolicy(const long unsigned int *nodeset,
-              const long unsigned int maxnode, const long unsigned int mode,
-              const long unsigned int &flags)
-        : _nodeset(), _mode(static_cast<enum mode>(mode)), _flags(flags) {
+    MemPolicy(const long unsigned int* nodeset,
+        const long unsigned int maxnode, const long unsigned int mode,
+        const long unsigned int& flags)
+        : _nodeset()
+        , _mode(static_cast<enum mode>(mode))
+        , _flags(flags)
+    {
         unsigned long *mask = _nodeset.get_mask();
         const unsigned long nulongs =
-            NUMA::Bitmask::MAXBITS / (8 * sizeof(*mask));
-        const unsigned long maxlongs =
-            maxnode / (8 * sizeof(*mask)) + maxnode % (8 * sizeof(*mask)) ? 1
-                                                                          : 0;
+            NUMA::Bitmask::MAXBITS / (8*sizeof(*mask));
+        const unsigned long maxlongs = maxnode / (8*sizeof(*mask)) +
+            maxnode % (8*sizeof(*mask)) ? 1 : 0;
         for (unsigned long i = 0; i < nulongs && i < maxlongs; i++)
             mask[i] = nodeset[i];
     }
@@ -239,14 +236,14 @@ class MemPolicy {
     MemPolicy(const MemPolicy &p)
         : _nodeset(p._nodeset), _mode(p._mode), _flags(p._flags) {}
 
-    const enum mode &mode() const { return _mode; }
-    enum mode &mode() { return _mode; }
-    long unsigned int &flags() { return _flags; }
-    const long unsigned int &flags() const { return _flags; }
+    const enum mode& mode() const { return _mode; }
+    enum mode& mode() { return _mode; }
+    long unsigned int& flags() { return _flags; }
+    const long unsigned int& flags() const { return _flags; }
 
     Bitmask nodeset() const { return Bitmask(_nodeset); }
-    Bitmask &nodeset() { return _nodeset; }
-    unsigned long *mask() { return _nodeset.get_mask(); }
+    Bitmask& nodeset() { return _nodeset; }
+    unsigned long* mask() { return _nodeset.get_mask(); }
 
     void set(const MemPolicy &policy) {
         _nodeset.copy_from(policy.nodeset());
@@ -254,16 +251,17 @@ class MemPolicy {
         _flags = policy.flags();
     }
 
-    void set(const Bitmask &nodeset, const enum mode mode,
+    void set(const Bitmask &nodeset,
+             const enum mode mode,
              const long unsigned int flags) {
         _nodeset.copy_from(nodeset);
         _mode = mode;
         _flags = flags;
     }
-};  // class MemPolicy
+}; // class MemPolicy
 
-size_t get_num_nodes(const System &sys);
+size_t get_num_nodes(const System& sys);
 
-};  // namespace NUMA
+} // namespace NUMA
 
-#endif  // __SIM_NUMA_HH__
+#endif // __SIM_NUMA_HH__

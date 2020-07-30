@@ -40,6 +40,10 @@
 /*     program constitutes acceptance of these licensing restrictions.   */
 /*  5. Absolutely no warranty is expressed or implied.                   */
 /*-----------------------------------------------------------------------*/
+#define _GNU_SOURCE
+#include <sys/syscall.h>
+#include <unistd.h>
+
 # include <stdio.h>
 # include <math.h>
 # include <float.h>
@@ -47,12 +51,13 @@
 # include <sys/time.h>
 # include <stdlib.h>
 # include <omp.h>
-
 #include "numa.h"
 
-#include "numa.c"
-
 /*# include <linux/getcpu.h>*/
+static inline int getcpu(int *cpu, int *node) {
+    return syscall(SYS_getcpu, cpu, node, NULL);
+}
+
 /* INSTRUCTIONS:
  *
  *	1) Stream requires a good bit of memory to run.  Adjust the
@@ -127,14 +132,6 @@ extern void tuned_STREAM_Add();
 extern void tuned_STREAM_Triad(double scalar);
 #endif
 
-#define _GNU_SOURCE
-#include <sys/syscall.h>
-#include <unistd.h>
-
-static inline int getcpu(int *cpu, int *node) {
-    return syscall(SYS_getcpu, cpu, node, NULL);
-}
-
 int
 main()
     {
@@ -183,7 +180,7 @@ main()
             unsigned long numa_allowed_nodeset[8];
             unsigned long numa_maxnode = 8 * sizeof(numa_allowed_nodeset);
             unsigned long numa_numnode = 8 * sizeof(numa_allowed_nodeset);
-            unsigned i;
+            unsigned long i;
 
             numa_page_size = sysconf(_SC_PAGESIZE);
             if (get_allowed_nodeset(numa_allowed_nodeset,
@@ -196,7 +193,7 @@ main()
 
             for (i = 0; i < numa_maxnode; ++i) {
                 if (bitmask_isset(numa_allowed_nodeset, i)) {
-                    printf("Allowed NUMA node: %d\n", i);
+                    printf("Allowed NUMA node: %lu\n", i);
                 }
             }
 

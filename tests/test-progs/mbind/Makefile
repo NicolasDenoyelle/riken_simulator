@@ -1,23 +1,24 @@
+CC=gcc
+CFLAGS=-Wall -Wextra -I. -static -std=c99
 LDFLAGS=
-CFLAGS=-Wall -Wextra -Werror -static -fopenmp
+OPENMP=-fopenmp
 
-SRC=numa.c
-OBJ=$(patsubst %.c, %.o, $(SRC))
-PROGS=allowed-nodeset stream stream-hbm
+.PHONY:= all clean
 
-all: $(OBJ) $(PROGS)
+all: allowed-nodeset mpol-bind stream2
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+numa.o: numa.c
+	$(CC) $(CFLAGS) $^ -c -o $@ $(LDFLAGS)
 
-stream-hbm: stream.c
-	$(CC) $(CFLAGS) -O3 -DHBM $< -o $@ $(LDFLAGS)
+allowed-nodeset: allowed-nodeset.c numa.o
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-stream: stream.c
-	$(CC) $(CFLAGS) -O3 $< -o $@ $(LDFLAGS)
+mpol-bind: mpol-bind.c numa.o
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-%: %.c $(OBJ)
-	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+stream2: stream2.c numa.o
+	$(CC) $(CFLAGS) -O3  $^ -o stream2.gnu.x $(OPENMP)
+	$(CC) $(CFLAGS) -O3 -DHBM $^ -o stream2.gnu.HBM.x $(OPENMP)
 
 clean:
-	rm -f $(OBJ) $(PROGS)
+	rm -f stream2.gnu.*x mpol-bind allowed-nodeset numa.o

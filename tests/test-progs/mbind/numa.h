@@ -1,8 +1,6 @@
 #ifndef __NUMA_H__
 #define __NUMA_H__
 
-#include <stdlib.h>
-
 /******************************************************************************
  * Bitmask
  *****************************************************************************/
@@ -48,15 +46,11 @@
     } while (0)
 
 // Store in n the number of bits set.
-#define bitmap_nset(nodeset, maxnode, n)                                    \
-    do {                                                                    \
-        unsigned long mask;                                                 \
-        n = 0;                                                              \
-        for (size_t i = 0; i < maxnode; i++) {                              \
-            n += mask & 1UL ? 1 : 0;                                        \
-            mask = i % (sizeof(*nodeset) * 8) ? mask >> 1                   \
-                                              : i / (sizeof(*nodeset) * 8); \
-        }                                                                   \
+#define bitmap_nset(nodeset, maxnode, n)                                \
+    do {                                                                \
+        n = 0;                                                          \
+        for (size_t i = 0; i < maxnode; i++)                            \
+            n += bitmask_isset(nodeset, i) ? 1 : 0;                     \
     } while (0)
 
 // Declare an empty nodeset fitting maxnode.
@@ -92,5 +86,19 @@ int get_allowed_nodeset(unsigned long* nodeset, unsigned long maxnode,
                         unsigned long* numnode);
 
 const char* policy_str(const int mode);
+
+int
+check_binding(const void* addr, const size_t size,
+              const unsigned long* nodemask,
+              const unsigned long maxnode,
+              const int mode);
+
+/******************************************************************************
+ * mmap
+ *****************************************************************************/
+
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS 0x20
+#endif
 
 #endif  //__NUMA_H__
