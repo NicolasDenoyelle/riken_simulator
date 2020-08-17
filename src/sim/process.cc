@@ -459,7 +459,8 @@ Process::movePages(Addr vaddr,
             do {
                 vaddr += page_size;
             } while (vaddr < end && (pe = pTable->lookup(vaddr)) == NULL);
-            allocateMem(start, vaddr-start, false, &mempolicy);
+            allocateMem(start, vaddr-start, true, &mempolicy);
+            start = vaddr;
         }
         else {
             // The page is already allocated, then migrate it.
